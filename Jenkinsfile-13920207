@@ -1,0 +1,46 @@
+pipeline {
+  agent any
+  tools {
+    maven 'maven'
+  }
+  options {
+    buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: '5')
+    disableConcurrentBuilds()
+  }
+  stages {
+    stage ('Build (phkbzp)') {
+      steps {
+        sh script: 'mvn clean ', label: 'dwtu5j'
+        sh script: 'mvn test ', label: '6v3qdc'
+        sh script: 'mvn install -Dmaven.test.skip=true', label: 'rs0v11'
+      } //end steps
+    } // end stage Build
+    stage ('Deploy (udkjn6)') {
+      steps {
+        script {
+		      withCredentials([usernameColonPassword(credentialsId: 'nexus-registry', variable: 'REG_CREDS')]) {
+				sh 'buildah bud --no-cache --pull --force-rm --format docker --creds ${REG_CREDS}' + " -t registry.ustpace.com/docker-sandbox/vdcheckdeploya-backend:latest --iidfile iid ."
+				sh 'buildah push --rm --creds ${REG_CREDS} $(cat iid) ' + " registry.ustpace.com/docker-sandbox/vdcheckdeploya-backend:latest"
+          }
+	}
+script { sh script: 'sleep 0.005', label: 'fmw4o7'}
+
+        sh script: '''
+ln -sf /usr/local/bin/helm3 /usr/local/bin/helm
+''', label: 'rlklcw'
+        sh script: 'helm package chart', label: 'ijhrf0'
+    script { sh script: 'sleep 0.005', label: '4j2evm'}
+    withCredentials([usernameColonPassword(credentialsId: 'nexus-registry', variable: 'USERNAME_PASSWORD')]) {
+      sh '''
+          curl -s -u ${USERNAME_PASSWORD} --fail --upload-file vdcheckdeploya-backend-chart-0.1.0.tgz "https://registry.ustpace.com/repository/helm-sandbox/vdcheckdeploya-backend-chart-0.1.0.tgz"
+      '''
+    }// end step group
+		withCredentials([usernamePassword(credentialsId: 'nexus-registry', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
+      sh script: 'helm repo add vdcheckdeploya-backend https://registry.ustpace.com/repository/helm-sandbox --username $USER --password $PASS', label: 'rvsu01'
+		}
+        sh script: 'helm repo update', label: 'mesfnb'
+        sh script: 'helm upgrade vdcheckdeploya-backend-deployment vdcheckdeploya-backend/vdcheckdeploya-backend-chart --install --values chart-values.yaml --namespace cattle-impersonation-system --set ingress.hosts[0].host=vdcheckdeploya-backend-cattle-impersonation-system.dagility.com', label: 'ixxrui'
+      } //end steps
+    } // end stage Deploy
+  }
+}
